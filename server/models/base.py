@@ -1,1 +1,4 @@
-from sqlacademy.ext.asyncio import create_async_engine, AsyncSession 
+from sqlalchemy.orm import DeclarativeBase
+
+class Base(DeclarativeBase):
+    pass
