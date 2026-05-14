@@ -1,10 +1,23 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from database import get_db
+from database import get_db, engine
+from models.base import Base
+import models.user, models.conversation, models.conversationMember, models.messages
+from routers.auth import router as auth_router
 
 app = FastAPI()
+app.include_router(auth_router)
 
+
+# Create tables on startup
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+# Basic health check endpoint
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
