@@ -7,3 +7,8 @@ sqlalchemy
 asyncpg
 psycopg2-binary
 alembic
+
+#Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
