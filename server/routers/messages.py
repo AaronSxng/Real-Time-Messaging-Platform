@@ -16,6 +16,24 @@ class ConversationRequest(BaseModel):
     is_group: bool = False
     member_ids: list[int]
 
+@router.get("/users")
+async def get_users(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(select(User).where(User.id != current_user.id))
+    users = result.scalars().all()
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name
+        }
+        for user in users
+    ]
+
 @router.get("/conversations")
 async def get_conversations(
     db: AsyncSession = Depends(get_db),
@@ -27,7 +45,26 @@ async def get_conversations(
         .where(ConversationMember.user_id == current_user.id)
     )
     conversations = result.scalars().all()
-    return conversations
+    
+    enriched = []
+    for conv in conversations:
+        if not conv.is_group:
+            result = await db.execute(
+                select(User)
+                .join(ConversationMember, ConversationMember.user_id == User.id)
+                .where(ConversationMember.conversation_id == conv.id)
+                .where(User.id != current_user.id)
+            )
+            other_user = result.scalar_one_or_none()
+            name = f"{other_user.first_name} {other_user.last_name}" if other_user else "Unknown"
+        else:
+            name = conv.name or "Unnamed Group"
+        enriched.append({
+            "id": conv.id,
+            "name": name,
+            "is_group": conv.is_group
+        })
+    return enriched
 
 @router.post("/conversations")
 async def create_conversation(

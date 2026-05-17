@@ -18,6 +18,7 @@ services:
       DB_USER: myuser
       DB_PASSWORD: mypassword
       DB_NAME: mydb
+      SECRET_KEY: 55ed149439caa95ebce4b36e824b84e1cf562ffd50630fb74ef6c4cd84223887
     ports:
       - "8000:8000"
     depends_on:
