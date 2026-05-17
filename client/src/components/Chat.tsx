@@ -29,7 +29,8 @@ type CurrentUser = {
   is_admin: boolean;
 };
 
-const API = "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const WS = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
 
 function Chat() {
   // State variables: hold data and UI state
@@ -52,9 +53,7 @@ function Chat() {
   useEffect(() => {
     if (!activeConvID || !token) return;
 
-    const socket = new WebSocket(
-      `ws://localhost:8000/ws/${activeConvID}?token=${token}`,
-    );
+    const socket = new WebSocket(`${WS}/ws/${activeConvID}?token=${token}`);
     ws.current = socket;
 
     socket.onmessage = (event) => {
