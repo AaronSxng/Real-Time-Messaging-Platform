@@ -30,23 +30,59 @@ Full-stack secure messaging application built with React, FastAPI, and PostgreSQ
 
 ---
 
+---
+
+## Project Structure
+
+```
+├── client/                        # React frontend
+│   ├── public/
+│   │   └── favicon.svg            # Website icon
+│   └── src/
+│       ├── components/
+│       │   ├── Login.tsx          # Login form
+│       │   ├── Register.tsx       # Registration form
+│       │   ├── Chat.tsx           # Main chat UI with WebSocket messaging
+│       │   └── NetworkLogs.tsx    # Admin network monitoring dashboard
+│       ├── App.tsx                # Route definitions
+│       └── main.tsx               # React entry point
+│
+├── server/                        # FastAPI backend
+│   ├── models/
+│   │   ├── conversation.py        # Conversations table
+│   │   ├── conversationMember.py  # Links users to conversations
+│   │   ├── messages.py            # Messages table
+│   │   ├── network_log.py         # Network events table
+│   │   └── user.py                # Users table
+│   ├── routers/
+│   │   ├── auth.py                # Register, login, /me endpoints
+│   │   ├── messages.py            # Conversations and users endpoints
+│   │   ├── network_log.py         # Network event logger and /network-logs endpoint
+│   │   └── websocket.py           # WebSocket handler and message broadcast
+│   ├── database.py                # SQLAlchemy async database connection
+│   └── main.py                    # App entry point, middleware, router registration
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # GitHub Actions CI pipeline
+├── docker-compose.yml              # Runs backend, frontend, and database containers
+└── README.md
+```
+
+
 ## Screenshots
 
 **Login**
-![Login](<img width="1119" height="945" alt="Login" src="https://github.com/user-attachments/assets/ad1fd250-8ff0-4eae-ae6d-187ad3467139" />
-)
+![Login](https://github.com/user-attachments/assets/ad1fd250-8ff0-4eae-ae6d-187ad3467139)
 
 **Register**
-![Register](<img width="1125" height="950" alt="Register" src="https://github.com/user-attachments/assets/79f87ecc-7d57-433c-9bc5-511da347a078" />
-)
+![Register](https://github.com/user-attachments/assets/79f87ecc-7d57-433c-9bc5-511da347a078)
 
 **Chat**
-![Chat](<img width="1123" height="949" alt="Message" src="https://github.com/user-attachments/assets/ae7c87b8-a925-4579-9151-655e31943e31" />
-)
+![Chat](https://github.com/user-attachments/assets/ae7c87b8-a925-4579-9151-655e31943e31)
 
 **Network Logs**
-![Network Logs](<img width="1119" height="944" alt="Network Log" src="https://github.com/user-attachments/assets/8255c670-d1bd-4ccb-b303-241eb007d6a2" />
-)
+![Network Logs](https://github.com/user-attachments/assets/8255c670-d1bd-4ccb-b303-241eb007d6a2)
 
 ---
 
