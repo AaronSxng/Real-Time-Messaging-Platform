@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
+// Types: descripe shape of data
 type Conversation = {
   id: number;
   name: string;
+  username?: string;
   is_group: boolean;
 };
 
@@ -20,22 +22,33 @@ type UserItem = {
   last_name: string;
 };
 
+type CurrentUser = {
+  username: string;
+  first_name: string;
+  last_name: string;
+  is_admin: boolean;
+};
+
 const API = "http://localhost:8000";
 
 function Chat() {
+  // State variables: hold data and UI state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvID, setActiveConvID] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [showNewChat, setShowNewChat] = useState(false);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
+  // Refs and navigation
   const token = localStorage.getItem("token");
-
   const activeConv = conversations.find((conv) => conv.id === activeConvID);
   const ws = useRef<WebSocket | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
+  // Effect: manage WebSocket connection for active conversation
   useEffect(() => {
     if (!activeConvID || !token) return;
 
@@ -48,17 +61,17 @@ function Chat() {
       const msg = JSON.parse(event.data);
       const newMessage: Message = {
         id: msg.id,
-        sender: msg.sent_by || `User ${msg.sender_id}`,
+        sender: msg.full_name || msg.sent_by || `User ${msg.sender_id}`,
         text: msg.content,
       };
       setMessages((prev) => [...prev, newMessage]);
     };
 
     socket.onerror = () => console.error("WebSocket error");
-
     return () => socket.close();
-  }, [activeConvID]);
+  }, [activeConvID]); // reconnect when active conversation changes
 
+  // Effect: fetch conversations on mount and check auth
   useEffect(() => {
     if (!token) {
       navigate("/login");
@@ -68,7 +81,16 @@ function Chat() {
       .then((res) => res.json())
       .then(setConversations)
       .catch(console.error);
+    fetch(`${API}/auth/me?token=${token}`)
+      .then((res) => res.json())
+      .then(setCurrentUser)
+      .catch(console.error);
   }, []);
+
+  // Effect: scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const sendMessage = () => {
     if (
@@ -89,11 +111,39 @@ function Chat() {
     setShowNewChat(true);
   };
 
-  const startChat = async (userID: number) => {
+  const startChat = async (user: UserItem) => {
+    const existing = conversations.find(
+      (conv) => !conv.is_group && conv.username === user.username,
+    );
+    if (existing) {
+      setActiveConvID(existing.id);
+      setMessages([]);
+      fetch(`${API}/conversations/${existing.id}/messages?token=${token}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setMessages(
+            data.map(
+              (msg: {
+                id: number;
+                sender_id: number;
+                full_name: string;
+                sent_by: string;
+                content: string;
+              }) => ({
+                id: msg.id,
+                sender: msg.full_name || msg.sent_by || `User ${msg.sender_id}`,
+                text: msg.content,
+              }),
+            ),
+          );
+        });
+      setShowNewChat(false);
+      return;
+    }
     const res = await fetch(`${API}/conversations?token=${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ member_ids: [userID] }),
+      body: JSON.stringify({ member_ids: [user.id] }),
     });
     const data = await res.json();
     setActiveConvID(data.conversation_id);
@@ -104,13 +154,39 @@ function Chat() {
       .catch(console.error);
   };
 
+  const logout = () => {
+    ws.current?.close();
+    localStorage.removeItem("token");
+    navigate("/login");
+  };
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       {/* Sidebar */}
       <div
         style={{ width: "250px", backgroundColor: "#f0f0f0", padding: "20px" }}
       >
-        <p>Messages</p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 4,
+          }}
+        >
+          <p style={{ fontWeight: "bold", margin: 0 }}>Messages</p>
+          <button onClick={logout}>Logout</button>
+          {currentUser?.is_admin && (
+            <button onClick={() => navigate("/network-logs")}>
+              Network Logs
+            </button>
+          )}
+        </div>
+        {currentUser && (
+          <p style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>
+            {`@${currentUser.username} | ${currentUser.first_name} ${currentUser.last_name}`}
+          </p>
+        )}
         <button onClick={openNewChat} style={{ marginBottom: "20px" }}>
           + New Chat
         </button>
@@ -123,11 +199,20 @@ function Chat() {
               fetch(`${API}/conversations/${conv.id}/messages?token=${token}`)
                 .then((res) => res.json())
                 .then((data) => {
-                  const formatted = data.map((msg: any) => ({
-                    id: msg.id,
-                    sender: msg.sent_by || `User ${msg.sender_id}`,
-                    text: msg.content,
-                  }));
+                  const formatted = data.map(
+                    (msg: {
+                      id: number;
+                      sender_id: number;
+                      full_name: string;
+                      sent_by: string;
+                      content: string;
+                    }) => ({
+                      id: msg.id,
+                      sender:
+                        msg.full_name || msg.sent_by || `User ${msg.sender_id}`,
+                      text: msg.content,
+                    }),
+                  );
                   setMessages(formatted);
                 })
                 .catch(console.error);
@@ -177,7 +262,7 @@ function Chat() {
                 users.map((u) => (
                   <div
                     key={u.id}
-                    onClick={() => startChat(u.id)}
+                    onClick={() => startChat(u)}
                     style={{
                       padding: "10px 0",
                       cursor: "pointer",
@@ -200,20 +285,29 @@ function Chat() {
         {activeConv ? (
           <div
             style={{
-              flex: 1,
-              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              height: "calc(100vh - 80px)",
               border: "1px solid #ccc",
               padding: "10px",
             }}
           >
             <strong style={{ display: "block", marginBottom: "10px" }}>
-              {activeConv.name}
+              {activeConv.username
+                ? `@${activeConv.username} | ${activeConv.name}`
+                : activeConv.name}
             </strong>
-            {messages.map((message) => (
-              <div key={message.id} style={{ marginBottom: "10px" }}>
-                <strong>{message.sender}:</strong> {message.text}
-              </div>
-            ))}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  style={{ marginBottom: "10px", textAlign: "left" }}
+                >
+                  <strong>{message.sender}:</strong> {message.text}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <input
                 style={{ flex: 1 }}

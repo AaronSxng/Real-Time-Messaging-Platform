@@ -62,6 +62,7 @@ async def get_conversations(
         enriched.append({
             "id": conv.id,
             "name": name,
+            "username": other_user.username if not conv.is_group else None,
             "is_group": conv.is_group
         })
     return enriched
@@ -107,10 +108,21 @@ async def get_messages(
         raise HTTPException(status_code=403, detail="Not a member of this conversation")
     
     result = await db.execute(
-        select(Message)
+        select(Message, User)
+        .join(User, User.id == Message.sender_id)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.timestamp)
     )
 
-    messages = result.scalars().all()
-    return messages
+    rows = result.all()
+    return [
+        {
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "content": msg.content,
+            "conversation_id": msg.conversation_id,
+            "sent_by": user.username,
+            "full_name": f"{user.first_name} {user.last_name}",
+        }
+        for msg, user in rows
+    ]
