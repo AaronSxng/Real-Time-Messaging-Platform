@@ -1,44 +1,70 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from database import AsyncSessionLocal, get_db
+from database import AsyncSessionLocal
 from models.messages import Message
-import json
+from models.user import User
+from jose import jwt, JWTError
+import os
 
-router = APIRouter(prefix="/ws", tags=["websocket"])
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+
+router = APIRouter()
 
 active_connections: dict[int, list[WebSocket]] = {}
+
 
 async def broadcast(conversation_id: int, message: dict):
     connections = active_connections.get(conversation_id, [])
     for connection in connections:
         await connection.send_json(message)
 
+
 @router.websocket("/ws/{conversation_id}")
-async def websocket_endpoint(websocket: WebSocket, conversation_id: int):
+async def websocket_endpoint(websocket: WebSocket, conversation_id: int, token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            await websocket.close(code=1008)
+            return
+    except JWTError:
+        await websocket.close(code=1008)
+        return
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.username == username))
+        user = result.scalar_one_or_none()
+        if not user:
+            await websocket.close(code=1008)
+            return
+        user_id = user.id
+
     await websocket.accept()
+
     if conversation_id not in active_connections:
         active_connections[conversation_id] = []
     active_connections[conversation_id].append(websocket)
 
     try:
         while True:
-            data = await websocket.receive_text()
+            data = await websocket.receive_json()
 
             async with AsyncSessionLocal() as db:
                 message = Message(
                     conversation_id=conversation_id,
-                    sender_id=data["sender_id"],
-                    content=data["content"]
+                    sender_id=user_id,
+                    content=data["content"],
                 )
                 db.add(message)
                 await db.commit()
-            
+
             await broadcast(conversation_id, {
-                "sender_id": data["sender_id"],
+                "sender_id": user_id,
                 "content": data["content"],
                 "conversation_id": conversation_id,
+                "sent_by": username,
             })
-    
+
     except WebSocketDisconnect:
         active_connections[conversation_id].remove(websocket)
