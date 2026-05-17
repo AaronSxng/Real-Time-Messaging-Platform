@@ -3,8 +3,11 @@ from sqlalchemy import select
 from database import AsyncSessionLocal
 from models.messages import Message
 from models.user import User
+from routers.network_log import log_network_event
 from jose import jwt, JWTError
 import os
+import time
+
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -49,6 +52,7 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: int, token: 
     try:
         while True:
             data = await websocket.receive_json()
+            start_time = time.time()
 
             async with AsyncSessionLocal() as db:
                 message = Message(
@@ -59,11 +63,23 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: int, token: 
                 db.add(message)
                 await db.commit()
 
+            src_ip, src_port = websocket.client
+            async with AsyncSessionLocal() as db:
+                await log_network_event(
+                    db=db,
+                    src_ip=src_ip,
+                    src_port=src_port,
+                    start_time=start_time,
+                    protocol="WS",
+                    dst_port=8000
+                )
+
             await broadcast(conversation_id, {
                 "sender_id": user_id,
                 "content": data["content"],
                 "conversation_id": conversation_id,
                 "sent_by": username,
+                "full_name": f"{user.first_name} {user.last_name}"
             })
 
     except WebSocketDisconnect:

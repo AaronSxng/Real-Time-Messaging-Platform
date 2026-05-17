@@ -82,3 +82,15 @@ async def get_current_user(token: str, db: AsyncSession = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")   
     return user
+
+@router.get("/me")
+async def get_me(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return {
+        "username": current_user.username,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "is_admin": current_user.is_admin
+    }
