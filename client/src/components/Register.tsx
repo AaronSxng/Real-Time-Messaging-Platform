@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 function Register() {
   const [form, setForm] = useState({
     username: "",
@@ -20,7 +22,7 @@ function Register() {
     e.preventDefault();
     setError("");
 
-    const res = await fetch("http://localhost:8000/auth/register", {
+    const res = await fetch(`${API}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
